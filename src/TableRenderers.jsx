@@ -53,6 +53,29 @@ function redColorScaleGenerator(values) {
 }
 
 function makeRenderer(opts = {}) {
+  class Subtotal extends React.Component {
+    render() {
+      if (this.props.row.length < 2) {
+        return null;
+      }
+      if ((this.props.index + 1) % this.props.row.length !== 0) {
+        return null;
+      }
+      return (
+        <tr key={`subtotal${this.props.index}`}>
+          <th
+            className="pvtTotalLabel"
+            colSpan={
+              this.props.rowAttrs.length +
+              (this.props.colAttrs.length === 0 ? 0 : 1)
+            }
+          >
+            Subtotal
+          </th>
+        </tr>
+      );
+    }
+  }
   class TableRenderer extends React.PureComponent {
     render() {
       const pivotData = new PivotData(this.props);
@@ -65,6 +88,7 @@ function makeRenderer(opts = {}) {
       let valueCellColors = () => {};
       let rowTotalColors = () => {};
       let colTotalColors = () => {};
+
       if (opts.heatmapMode) {
         const colorScaleGenerator = this.props.tableColorScaleGenerator;
         const rowTotalValues = colKeys.map(x =>
@@ -174,6 +198,11 @@ function makeRenderer(opts = {}) {
                       Totals
                     </th>
                   )}
+                  {opts.subtotals && rowAttrs.length > 1 ? (
+                    <th className="pvtTotalLabel">Subtotals</th>
+                  ) : (
+                    ''
+                  )}
                 </tr>
               );
             })}
@@ -187,6 +216,7 @@ function makeRenderer(opts = {}) {
                     </th>
                   );
                 })}
+
                 <th className="pvtTotalLabel">
                   {colAttrs.length === 0 ? 'Totals' : null}
                 </th>
@@ -197,7 +227,7 @@ function makeRenderer(opts = {}) {
           <tbody>
             {rowKeys.map(function(rowKey, i) {
               const totalAggregator = pivotData.getAggregator(rowKey, []);
-              return (
+              return [
                 <tr key={`rowKeyRow${i}`}>
                   {rowKey.map(function(txt, j) {
                     const x = spanSize(rowKeys, i, j);
@@ -249,10 +279,34 @@ function makeRenderer(opts = {}) {
                   >
                     {totalAggregator.format(totalAggregator.value())}
                   </td>
-                </tr>
-              );
+                </tr>,
+                <Subtotal
+                  index={i}
+                  row={rowKey}
+                  rowAttrs={rowAttrs}
+                  colAttrs={colAttrs}
+                />,
+              ];
             })}
-
+            {opts.subtotals && colAttrs.length > 1 ? (
+              <tr>
+                <th
+                  className="pvtTotalLabel"
+                  colSpan={rowAttrs.length + (colAttrs.length === 0 ? 0 : 1)}
+                >
+                  Subtotals
+                </th>
+                {colKeys.map(function(colKey, i) {
+                  return (
+                    <td className="pvtTotal" key={`subtotal${i}`}>
+                      t
+                    </td>
+                  );
+                })}
+              </tr>
+            ) : (
+              ''
+            )}
             <tr>
               <th
                 className="pvtTotalLabel"
@@ -351,5 +405,6 @@ export default {
   'Table Heatmap': makeRenderer({heatmapMode: 'full'}),
   'Table Col Heatmap': makeRenderer({heatmapMode: 'col'}),
   'Table Row Heatmap': makeRenderer({heatmapMode: 'row'}),
+  'Table With Subtotals': makeRenderer({subtotals: 'yes'}),
   'Exportable TSV': TSVExportRenderer,
 };
