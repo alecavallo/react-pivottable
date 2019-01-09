@@ -77,22 +77,46 @@ const calculateSutotalsParentspan = function(arr, pos, col) {
  */
 const renderSubtotal = function(arr, pos, col) {
   let doRenderSubtotal = true;
-  // do not compare subtotal for the last column due to always will be ungrouped
-  if (!Array.isArray(arr) || col >= arr[0].length - 1) {
-    return false;
-  }
-  // do not render subtotal after the first row
-  if (pos === 0) {
+  // basic conditions where this never will be true
+  if (
+    pos === 0 ||
+    col === arr[pos].length - 1 ||
+    !Array.isArray(arr) ||
+    !Array.isArray(arr[pos]) ||
+    arr.length <= 2 ||
+    arr[pos].length < 2
+  ) {
     return false;
   }
 
-  doRenderSubtotal &= arr[pos - 1][col] === arr[pos][col];
-  // if the current item is equal to pos - 1, compare the next one to detect if we are at the end of the group
-  if (doRenderSubtotal && pos < arr.length - 1) {
-    doRenderSubtotal &= arr[pos][col] !== arr[pos + 1][col];
+  // comparing the current row with the previous one in order to assure it's a grouping. All previous columns shold be equals
+  for (let i = 0; i <= col; i++) {
+    doRenderSubtotal &= arr[pos - 1][i] === arr[pos][i];
+
+    if (!doRenderSubtotal) {
+      break;
+    }
   }
 
-  return doRenderSubtotal;
+  if (!doRenderSubtotal) {
+    return false;
+  }
+  if (pos + 1 > arr.length - 1) {
+    return doRenderSubtotal;
+  }
+
+  // checking if at least one column differs with the next row
+  let nextRowDifferent = false;
+
+  for (let i = 0; i <= col; i++) {
+    nextRowDifferent |= arr[pos][i] !== arr[pos + 1][i];
+
+    if (!doRenderSubtotal) {
+      break;
+    }
+  }
+
+  return doRenderSubtotal && nextRowDifferent;
 };
 
 /**
@@ -163,25 +187,29 @@ function redColorScaleGenerator(values) {
 function makeRenderer(opts = {}) {
   class Subtotal extends React.Component {
     render() {
-      return this.props.rowAttrs.map((txt, col) => {
-        if (!renderSubtotal(this.props.rowKeys, this.props.index, col)) {
-          return null;
-        }
-        return (
-          <tr key={`subtotal${this.props.index}-${col}`}>
-            <th
-              className="pvtTotalLabel"
-              colSpan={
-                this.props.rowAttrs.length -
-                col +
-                (this.props.colAttrs.length === 0 ? 0 : 1)
-              }
-            >
-              Subtotal {txt}
-            </th>
-          </tr>
-        );
-      });
+      return this.props.rowAttrs
+        .slice()
+        .reverse()
+        .map((txt, col) => {
+          const revCol = this.props.rowAttrs.length - 1 - col;
+          if (!renderSubtotal(this.props.rowKeys, this.props.index, revCol)) {
+            return null;
+          }
+          return (
+            <tr key={`subtotal${this.props.index}-${revCol}`}>
+              <th
+                className="pvtTotalLabel"
+                colSpan={
+                  this.props.rowAttrs.length -
+                  revCol +
+                  (this.props.colAttrs.length === 0 ? 0 : 1)
+                }
+              >
+                Subtotal {txt}
+              </th>
+            </tr>
+          );
+        });
     }
   }
 
@@ -336,72 +364,76 @@ function makeRenderer(opts = {}) {
           <tbody>
             {rowKeys.map(function(rowKey, i) {
               const totalAggregator = pivotData.getAggregator(rowKey, []);
-              return [
-                <tr key={`rowKeyRow${i}`}>
-                  {rowKey.map(function(txt, j) {
-                    const x =
-                      spanSize(rowKeys, i, j) +
-                      calculateSutotalsParentspan(rowKeys, i, j);
-                    if (x === -1) {
-                      return null;
-                    }
-                    // x += calculateSutotalsParentspan(rowKeys, i, j);
+              return (
+                <React.Fragment key={`fragment-${i}`}>
+                  <tr key={`rowKeyRow${i}`}>
+                    {rowKey.map(function(txt, j) {
+                      let x = spanSize(rowKeys, i, j);
+                      if (x === -1) {
+                        return null;
+                      }
+                      x += calculateSutotalsParentspan(rowKeys, i, j);
 
-                    return (
-                      <th
-                        key={`rowKeyLabel${i}-${j}`}
-                        className="pvtRowLabel"
-                        rowSpan={x}
-                        colSpan={
-                          j === rowAttrs.length - 1 && colAttrs.length !== 0
-                            ? 2
-                            : 1
-                        }
-                      >
-                        {txt}
-                      </th>
-                    );
-                  })}
-                  {colKeys.map(function(colKey, j) {
-                    const aggregator = pivotData.getAggregator(rowKey, colKey);
-                    return (
-                      <td
-                        className="pvtVal"
-                        key={`pvtVal${i}-${j}`}
-                        onClick={
-                          getClickHandler &&
-                          getClickHandler(aggregator.value(), rowKey, colKey)
-                        }
-                        style={valueCellColors(
-                          rowKey,
-                          colKey,
-                          aggregator.value()
-                        )}
-                      >
-                        {aggregator.format(aggregator.value())}
-                      </td>
-                    );
-                  })}
-                  <td
-                    className="pvtTotal"
-                    onClick={
-                      getClickHandler &&
-                      getClickHandler(totalAggregator.value(), rowKey, [null])
-                    }
-                    style={colTotalColors(totalAggregator.value())}
-                  >
-                    {totalAggregator.format(totalAggregator.value())}
-                  </td>
-                </tr>,
-                <Subtotal
-                  key={i}
-                  rowKeys={rowKeys}
-                  index={i}
-                  row={rowKey}
-                  rowAttrs={rowAttrs}
-                  colAttrs={colAttrs}
-                />,
-              ];
+                      return (
+                        <th
+                          key={`rowKeyLabel${i}-${j}`}
+                          className="pvtRowLabel"
+                          rowSpan={x}
+                          colSpan={
+                            j === rowAttrs.length - 1 && colAttrs.length !== 0
+                              ? 2
+                              : 1
+                          }
+                        >
+                          {txt}
+                        </th>
+                      );
+                    })}
+                    {colKeys.map(function(colKey, j) {
+                      const aggregator = pivotData.getAggregator(
+                        rowKey,
+                        colKey
+                      );
+                      return (
+                        <td
+                          className="pvtVal"
+                          key={`pvtVal${i}-${j}`}
+                          onClick={
+                            getClickHandler &&
+                            getClickHandler(aggregator.value(), rowKey, colKey)
+                          }
+                          style={valueCellColors(
+                            rowKey,
+                            colKey,
+                            aggregator.value()
+                          )}
+                        >
+                          {aggregator.format(aggregator.value())}
+                        </td>
+                      );
+                    })}
+                    <td
+                      className="pvtTotal"
+                      onClick={
+                        getClickHandler &&
+                        getClickHandler(totalAggregator.value(), rowKey, [null])
+                      }
+                      style={colTotalColors(totalAggregator.value())}
+                    >
+                      {totalAggregator.format(totalAggregator.value())}
+                    </td>
+                  </tr>
+
+                  <Subtotal
+                    key={i}
+                    rowKeys={rowKeys}
+                    index={i}
+                    row={rowKey}
+                    rowAttrs={rowAttrs}
+                    colAttrs={colAttrs}
+                  />
+                </React.Fragment>
+              );
             })}
 
             {opts.subtotals && colAttrs.length > 1 ? (
