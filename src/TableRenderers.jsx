@@ -1,3 +1,5 @@
+/* eslint-disable jsx-a11y/no-noninteractive-element-interactions */
+/* eslint-disable jsx-a11y/click-events-have-key-events */
 import React from 'react';
 import PropTypes from 'prop-types';
 import {PivotData} from './Utilities';
@@ -11,11 +13,8 @@ import {PivotData} from './Utilities';
  */
 const calculateSutotalsParentspan = function(arr, pos, col) {
   let count = 0;
-  let maxIterations = arr.length - 1;
-  let groupStart = false;
 
-  let j = col;
-  if (!Array.isArray(arr) || col >= arr[0].length - 1) {
+  if (!Array.isArray(arr) || col >= arr[pos].length - 1) {
     return count;
   }
 
@@ -40,30 +39,76 @@ const calculateSutotalsParentspan = function(arr, pos, col) {
     }
   }
 
-  // iterate over the columns except the last one which will be always no grouped
-  while (j < arr[0].length - 1) {
-    let i = pos;
-    groupStart = false;
-    while (i < arr.length - 1 && i < maxIterations) {
-      if (arr[i][j] === arr[i + 1][j]) {
-        groupStart = true;
-      } else if (groupStart) {
-        // store the max iterations only when analyzing the first column
-        if (j === col) {
-          maxIterations = i;
+  // base case for the last row
+  if (pos === arr.length - 1) {
+    return 0;
+  }
+
+  // checking if the coordinate (row/col) analyzed indicated is within a group. If not, return 0
+  if (arr[pos][col] !== arr[pos + 1][col]) {
+    return 0;
+  }
+
+  // iterate over the rows to get the size of the first grouping
+  let i = pos;
+  let maxGroupRowIndex = arr.length - 1;
+
+  while (i <= maxGroupRowIndex) {
+    /** defining base cases*/
+
+    // if we analyze the first row
+    if (i === pos) {
+      let groupStarted = false;
+      for (let j = col; j < arr[i].length - 1; j++) {
+        if (arr[i][j] !== arr[i + 1][j]) {
+          if (groupStarted === true) {
+            count++;
+          }
+          break;
         } else {
-          // if it's analyzing a subgroup, increment the counter
-          count++;
-          groupStart = false;
+          if (j > col) {
+            groupStarted = true;
+          }
         }
       }
-      i++;
     }
-    // if the end of the row has been reached with a last grouping
-    if (j !== col && groupStart) {
-      count++;
+
+    // if we analyze the penultimate row
+    if (i + 1 > maxGroupRowIndex) {
+      for (let j = col; j < arr[i].length - 1; j++) {
+        if (arr[i][j] === arr[i - 1][j]) {
+          if (j > col) {
+            count++;
+          }
+        } else {
+          break;
+        }
+      }
     }
-    j++;
+
+    /** end of base cases */
+    // all other rows
+    if (i > pos && i + 1 <= maxGroupRowIndex) {
+      let previousGroupFinished = false;
+      for (let j = col; j < arr[i].length - 1; j++) {
+        // if matches with previous row, it's a group ... allow comparison with next row
+        if (arr[i - 1][j] === arr[i][j]) {
+          if (arr[i][j] !== arr[i + 1][j] || previousGroupFinished === true) {
+            if (j > col) {
+              count++;
+            }
+            if (j === col) {
+              maxGroupRowIndex = i;
+            }
+            previousGroupFinished = true;
+          }
+        } else {
+          break;
+        }
+      }
+    }
+
+    i++;
   }
 
   return count;
@@ -212,8 +257,20 @@ function makeRenderer(opts = {}) {
         });
     }
   }
+  Subtotal.defaultProps = PivotData.defaultProps;
+  Subtotal.propTypes = PivotData.propTypes;
 
   class TableRenderer extends React.Component {
+    constructor(props) {
+      super(props);
+      this.subtotals = true;
+      this.grouping = {tete: 'tata'};
+    }
+
+    /* groupingBy = (arr, start, end, col, output) => {
+      output[arr[0][0]] = {};
+    };*/
+
     render() {
       const pivotData = new PivotData(this.props);
       const colAttrs = pivotData.props.cols;
@@ -221,6 +278,8 @@ function makeRenderer(opts = {}) {
       const rowKeys = pivotData.getRowKeys();
       const colKeys = pivotData.getColKeys();
       const grandTotalAggregator = pivotData.getAggregator([], []);
+
+      // this.groupingBy(rowAttrs, 0, rowAttrs.length - 1, 0, this.grouping);
 
       let valueCellColors = () => {};
       let rowTotalColors = () => {};
