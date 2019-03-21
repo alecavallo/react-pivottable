@@ -57,7 +57,7 @@ const calculateSutotalsParentspan = function(arr, pos, col) {
     /** defining base cases*/
 
     // if we analyze the first row
-    if (i === pos) {
+    if (i === pos && i + 1 === maxGroupRowIndex) {
       let groupStarted = false;
       for (let j = col; j < arr[i].length - 1; j++) {
         if (arr[i][j] !== arr[i + 1][j]) {
@@ -71,6 +71,7 @@ const calculateSutotalsParentspan = function(arr, pos, col) {
           }
         }
       }
+      return count;
     }
 
     // if we analyze the penultimate row
@@ -93,14 +94,23 @@ const calculateSutotalsParentspan = function(arr, pos, col) {
       for (let j = col; j < arr[i].length - 1; j++) {
         // if matches with previous row, it's a group ... allow comparison with next row
         if (arr[i - 1][j] === arr[i][j]) {
-          if (arr[i][j] !== arr[i + 1][j] || previousGroupFinished === true) {
+          // test if the group changes on the preceding columns until the current one
+          if (!previousGroupFinished) {
+            for (let pc = 0; pc < j + 1; pc++) {
+              if (arr[i][pc] !== arr[i + 1][pc]) {
+                previousGroupFinished = true;
+                break;
+              }
+            }
+          }
+
+          if (previousGroupFinished === true) {
             if (j > col) {
               count++;
             }
             if (j === col) {
               maxGroupRowIndex = i;
             }
-            previousGroupFinished = true;
           }
         } else {
           break;
@@ -113,6 +123,7 @@ const calculateSutotalsParentspan = function(arr, pos, col) {
 
   return count;
 };
+
 /**
  * This function is used to detect if the subtotal row should be rendered. to do that it compares i-1, i, and i+1
  * @param {Array} arr array of table rows to be analized
@@ -156,7 +167,7 @@ const renderSubtotal = function(arr, pos, col) {
   for (let i = 0; i <= col; i++) {
     nextRowDifferent |= arr[pos][i] !== arr[pos + 1][i];
 
-    if (!doRenderSubtotal) {
+    if (nextRowDifferent) {
       break;
     }
   }
@@ -164,7 +175,34 @@ const renderSubtotal = function(arr, pos, col) {
   return doRenderSubtotal && nextRowDifferent;
 };
 
+const calculateRowSpan = function(data, row, col) {
+  return 0;
+};
+const calculateColSpan = function(data, row, col) {
+  return 0;
+};
+const calcExtraSpan = function(data) {
+  const metadataMatrix = new Array();
+  data.forEach((row, rowKey) => {
+    const cols = new Array();
+    row.forEach((colValue, colKey) => {
+      const cell = {
+        val: colValue,
+        rowSpan: 0,
+        colSpan: 0,
+        renderSubtotal: false,
+      };
+      cell.rowSpan = calculateRowSpan(data, rowKey, colKey);
+      cell.colSpan = calculateColSpan(data, rowKey, colKey);
+      cell.renderSubtotal = renderSubtotal(data, rowKey, colKey);
+      cols[colKey] = cell;
+    });
+    metadataMatrix[rowKey] = cols;
+  });
+};
+
 /**
+ *
  * helper function for setting row/col-span in pivotTableRenderer
  * @param {Array} arr bi-dimensional array of row/cols elements
  * @param {int} i arr starting row
